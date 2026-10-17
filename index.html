@@ -1,0 +1,709 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<title>Simulatore Didattico Altimetria - PPL(A)</title>
+<style>
+  body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    margin: 0; padding: 10px;
+    background: #0f172a; color: #f8fafc;
+    display: grid;
+    grid-template-columns: 1.35fr 1fr;
+    grid-template-rows: auto 1fr auto;
+    gap: 10px;
+    height: 98vh;
+    box-sizing: border-box;
+  }
+  header {
+    grid-column: 1 / -1;
+    display: flex; justify-content: space-between; align-items: center;
+    background: #1e293b; padding: 8px 16px; border-radius: 8px;
+    border: 1px solid #334155;
+  }
+  h1 { margin: 0; font-size: 1.15rem; color: #38bdf8; font-weight: normal; }
+  .scenario-btns button {
+    background: #334155; color: #fff; border: 1px solid #475569;
+    padding: 6px 10px; margin-left: 4px; border-radius: 6px; cursor: pointer;
+    font-size: 0.82rem;
+  }
+  .scenario-btns button:hover { background: #0284c7; }
+  
+  .canvas-box {
+    background: #1e293b; border-radius: 8px; overflow: hidden;
+    position: relative; border: 1px solid #334155;
+  }
+  canvas#world { width: 100%; height: 100%; display: block; }
+  
+  .right-panel {
+    display: flex; flex-direction: column; gap: 8px;
+  }
+  .instruments-box {
+    background: #1e293b; border-radius: 8px; padding: 8px 12px;
+    display: flex; align-items: center; justify-content: space-around;
+    border: 1px solid #334155;
+  }
+  .digital-box {
+    background: #090d16; border: 2px solid #475569; border-radius: 8px;
+    padding: 8px 12px; text-align: center; min-width: 185px;
+  }
+  .dig-title { font-size: 0.7rem; color: #94a3b8; letter-spacing: 1px; }
+  .dig-val { font-family: monospace; font-size: 1.7rem; color: #22c55e; margin: 2px 0; }
+  .dig-fl { font-family: monospace; font-size: 1rem; color: #e879f9; margin-bottom: 4px; }
+  .dig-sub { font-family: monospace; font-size: 1.05rem; color: #facc15; }
+  .status-badge {
+    margin-top: 6px; padding: 4px 6px; border-radius: 4px;
+    font-size: 0.78rem; text-align: center;
+  }
+  .safe { background: #065f46; color: #a7f3d0; }
+  .danger { background: #991b1b; color: #fecaca; }
+
+  .controls-box {
+    background: #1e293b; border-radius: 8px; padding: 10px 14px;
+    border: 1px solid #334155; flex-grow: 1;
+    display: flex; flex-direction: column; justify-content: space-between;
+  }
+  .section-box {
+    background: #0f172a; border: 1px solid #334155; border-radius: 6px;
+    padding: 7px 10px; margin-bottom: 6px;
+  }
+  .section-box.world-atmo { border-left: 4px solid #38bdf8; }
+  .section-box.pilot-inst { border-left: 4px solid #facc15; }
+
+  .control-row { display: flex; flex-direction: column; gap: 2px; margin-bottom: 5px; }
+  .control-header { display: flex; justify-content: space-between; font-size: 0.85rem; }
+  .val-highlight { color: #38bdf8; font-family: monospace; font-size: 0.95rem; }
+  .val-yellow { color: #facc15; font-family: monospace; font-size: 0.95rem; }
+  input[type=range] { width: 100%; cursor: pointer; accent-color: #38bdf8; height: 18px; margin: 0; }
+  
+  .mode-btns { display: flex; gap: 5px; margin-bottom: 6px; }
+  .mode-btns button {
+    flex: 1; padding: 6px; background: #1e293b; color: #cbd5e1;
+    border: 1px solid #475569; border-radius: 5px; cursor: pointer; font-size: 0.8rem;
+  }
+  .mode-btns button.active { background: #0284c7; color: #fff; border-color: #38bdf8; }
+
+  .formulas-box {
+    grid-column: 1 / -1;
+    background: #1e293b; border-radius: 8px; padding: 8px 14px;
+    border: 1px solid #334155;
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px;
+  }
+  .f-card {
+    background: #0f172a; padding: 7px 10px; border-radius: 6px;
+    border-left: 4px solid #38bdf8; font-size: 0.8rem; line-height: 1.3;
+  }
+  .f-title { color: #94a3b8; font-size: 0.72rem; text-transform: uppercase; margin-bottom: 2px; }
+  .f-math { font-family: monospace; font-size: 0.88rem; color: #f8fafc; margin: 2px 0; }
+  .dyn { color: #facc15; }
+  .res { color: #4ade80; }
+  .mag { color: #e879f9; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Simulatore Altimetria, Isobare e Riferimento 1013 (27 ft/hPa) - Lezione 4 PPL(A)</h1>
+  <div class="scenario-btns">
+    <button onclick="setScenario(0)">Reset ISA (1013)</button>
+    <button onclick="setScenario(4)">Aereo in Pista (QFE / QNH / 1013)</button>
+    <button onclick="setScenario(1)">Sfida 1: Alta -> Bassa Pressione</button>
+    <button onclick="setScenario(2)">Sfida 2: Aria Fredda</button>
+    <button onclick="setScenario(3)">Sfida 3: Triplo Pericolo (CFIT)</button>
+  </div>
+</header>
+
+<div class="canvas-box">
+  <canvas id="world" width="820" height="520"></canvas>
+</div>
+
+<div class="right-panel">
+  <div class="instruments-box">
+    <canvas id="altimeter" width="165" height="165"></canvas>
+    <div class="digital-box">
+      <div class="dig-title">INDICATED ALTITUDE</div>
+      <div class="dig-val" id="digAlt">5000 FT</div>
+      <div class="dig-fl" id="digFL">Pressure Alt: 5000 ft (FL050)</div>
+      <div class="dig-title">FINESTRA KOLLSMAN (PILOTA)</div>
+      <div class="dig-sub" id="digSub">1013 hPa</div>
+      <div id="safetyBadge" class="status-badge safe">Margine Montagna: +800 ft</div>
+    </div>
+  </div>
+
+  <div class="controls-box">
+    <!-- Modalità di blocco -->
+    <div class="mode-btns">
+      <button id="lockTrue" class="active" onclick="setLockMode('TRUE')">Modalità A: Aereo Fermo (Varia Altimetro)</button>
+      <button id="lockInd" onclick="setLockMode('IND')">Modalità B: Pilota Segue Altimetro (Varia Quota Vera)</button>
+    </div>
+
+    <!-- SEZIONE PILOTA / CABINA -->
+    <div class="section-box pilot-inst">
+      <div style="font-size:0.78rem; color:#facc15; margin-bottom:4px;">CONTROLLI PILOTA (IN CABINA):</div>
+      <div class="mode-btns">
+        <button id="btnQNH" class="active" onclick="setSubscalePreset('QNH')">Imposta QNH Reale</button>
+        <button id="btnSTD" onclick="setSubscalePreset('STD')">Imposta STD (1013)</button>
+        <button id="btnQFE" onclick="setSubscalePreset('QFE')">Imposta QFE Pista</button>
+      </div>
+
+      <div class="control-row">
+        <div class="control-header">
+          <span>Manopola Sottoscala Altimetro (Kollsman):</span>
+          <span class="val-yellow" id="lblSub">1013 hPa</span>
+        </div>
+        <input type="range" id="slSub" min="920" max="1050" step="1" value="1013" oninput="manualSubscale()" style="accent-color:#facc15;">
+      </div>
+
+      <div class="control-row" style="margin-bottom:0;">
+        <div class="control-header">
+          <span id="lblMainSliderTitle">Quota Vera Aereo (MSL):</span>
+          <span class="val-yellow" id="lblMainSliderVal">5000 ft</span>
+        </div>
+        <input type="range" id="slMain" min="1485" max="8000" step="15" value="5000" oninput="updateSim()" style="accent-color:#facc15;">
+      </div>
+    </div>
+
+    <!-- SEZIONE MONDO ESTERNO / METEO -->
+    <div class="section-box world-atmo" style="margin-bottom:0;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+        <span style="font-size:0.78rem; color:#38bdf8;">ATMOSFERA NEL MONDO ESTERNO (METEO):</span>
+        <label style="font-size:0.75rem; color:#cbd5e1; cursor:pointer;">
+          <input type="checkbox" id="chkSyncQnh"> Aggiorna anche l'altimetro col QNH
+        </label>
+      </div>
+
+      <div class="control-row">
+        <div class="control-header">
+          <span>QNH nel Mondo (Pressione al Livello del Mare):</span>
+          <span class="val-highlight" id="lblQnh">1013 hPa</span>
+        </div>
+        <input type="range" id="slQnh" min="960" max="1045" step="1" value="1013" oninput="onWorldQnhChange()">
+      </div>
+
+      <div class="control-row">
+        <div class="control-header">
+          <span>Deviazione Temperatura (ΔISA):</span>
+          <span class="val-highlight" id="lblTemp">0 °C</span>
+        </div>
+        <input type="range" id="slTemp" min="-25" max="25" step="1" value="0" oninput="updateSim()">
+      </div>
+
+      <div class="control-row" style="margin-bottom:0;">
+        <div class="control-header">
+          <span>Vento sulla Cresta (Effetto Venturi):</span>
+          <span class="val-highlight" id="lblWind">0 kt</span>
+        </div>
+        <input type="range" id="slWind" min="0" max="60" step="5" value="0" oninput="updateSim()">
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="formulas-box">
+  <div class="f-card">
+    <div class="f-title">1. Riferimento 1013 vs QNH (27 ft/hPa)</div>
+    <div>Quota Isobara 1013 = (<span class="dyn" id="f_qnh1">1013</span> - 1013) × 27</div>
+    <div class="f-math">Isobara 1013 = <span class="mag" id="f_iso1013">0 ft MSL</span></div>
+    <div>Pressure Alt (rif. 1013) = <span class="mag" id="f_pa">5000 ft</span></div>
+  </div>
+
+  <div class="f-card">
+    <div class="f-title">2. Sottoscala vs QNH (27 ft/hPa)</div>
+    <div>ΔP = (<span class="dyn" id="f_sub">1013</span> - <span class="dyn" id="f_qnh">1013</span>) × 27</div>
+    <div class="f-math">Diff. Baro = <span class="res" id="f_baroDiff">0 ft</span></div>
+    <div style="font-size:0.73rem; color:#94a3b8;">Ogni hPa di differenza sposta la lettura di 27 ft.</div>
+  </div>
+
+  <div class="f-card">
+    <div class="f-title">3. Errore Temperatura (Regola 4%)</div>
+    <div>4% × (<span class="dyn" id="f_height">3515</span>/1000) × <span class="dyn" id="f_disa">0</span>°C</div>
+    <div class="f-math">Err. Temp = <span class="res" id="f_tempErr">0 ft</span></div>
+    <div style="font-size:0.73rem; color:#94a3b8;">Aria fredda comprime le isobare verso il suolo.</div>
+  </div>
+
+  <div class="f-card">
+    <div class="f-title">4. Quota Vera & Density Altitude</div>
+    <div>Ind: <span class="dyn" id="f_ind">5000</span> | True: <span class="res" id="f_trueAlt">5000 ft</span></div>
+    <div>DA = PA + (120 × <span class="dyn" id="f_disa2">0</span>°C)</div>
+    <div class="f-math">Density Alt = <span class="res" id="f_da">5000 ft</span></div>
+  </div>
+</div>
+
+<script>
+  const FT_PER_HPA = 27; // Gradiente barico standard 27 ft/hPa
+  const ELEV_AIRPORT = 1485; // ft (esattamente 55 hPa * 27 ft/hPa per avere QFE intero al centesimo)
+  const ELEV_MOUNTAIN = 4200; // ft
+  let lockMode = 'TRUE';
+
+  const wCanvas = document.getElementById('world');
+  const wCtx = wCanvas.getContext('2d');
+  const aCanvas = document.getElementById('altimeter');
+  const aCtx = aCanvas.getContext('2d');
+
+  function setLockMode(mode) {
+    lockMode = mode;
+    document.getElementById('lockTrue').classList.toggle('active', mode === 'TRUE');
+    document.getElementById('lockInd').classList.toggle('active', mode === 'IND');
+    document.getElementById('lblMainSliderTitle').innerText = 
+      (mode === 'TRUE') ? "Quota Vera Aereo (Posizione Fisica MSL):" : "Quota Indicata Mantenuta dal Pilota:";
+    updateSim();
+  }
+
+  function onWorldQnhChange() {
+    if (document.getElementById('chkSyncQnh').checked) {
+      document.getElementById('slSub').value = document.getElementById('slQnh').value;
+    } else {
+      document.getElementById('btnQNH').classList.remove('active');
+    }
+    updateSim();
+  }
+
+  function setSubscalePreset(preset) {
+    document.getElementById('btnQNH').classList.remove('active');
+    document.getElementById('btnSTD').classList.remove('active');
+    document.getElementById('btnQFE').classList.remove('active');
+    
+    const qnh = parseInt(document.getElementById('slQnh').value);
+    if (preset === 'QNH') {
+      document.getElementById('slSub').value = qnh;
+      document.getElementById('btnQNH').classList.add('active');
+    } else if (preset === 'STD') {
+      document.getElementById('slSub').value = 1013;
+      document.getElementById('btnSTD').classList.add('active');
+    } else if (preset === 'QFE') {
+      const qfe = Math.round(qnh - (ELEV_AIRPORT / FT_PER_HPA));
+      document.getElementById('slSub').value = qfe;
+      document.getElementById('btnQFE').classList.add('active');
+    }
+    updateSim();
+  }
+
+  function manualSubscale() {
+    document.getElementById('btnQNH').classList.remove('active');
+    document.getElementById('btnSTD').classList.remove('active');
+    document.getElementById('btnQFE').classList.remove('active');
+    updateSim();
+  }
+
+  function setScenario(num) {
+    document.getElementById('chkSyncQnh').checked = false;
+    if (num === 0) {
+      setLockMode('TRUE');
+      document.getElementById('slMain').value = 5010;
+      document.getElementById('slQnh').value = 1013;
+      document.getElementById('slSub').value = 1013;
+      document.getElementById('slTemp').value = 0;
+      document.getElementById('slWind').value = 0;
+      setSubscalePreset('QNH');
+    } else if (num === 4) {
+      setLockMode('TRUE');
+      document.getElementById('slMain').value = ELEV_AIRPORT;
+      document.getElementById('slQnh').value = 1025;
+      document.getElementById('slSub').value = 1025;
+      document.getElementById('slTemp').value = 0;
+      document.getElementById('slWind').value = 0;
+      setSubscalePreset('QNH');
+    } else if (num === 1) {
+      setLockMode('IND');
+      document.getElementById('slMain').value = 4605;
+      document.getElementById('slSub').value = 1022;
+      document.getElementById('slQnh').value = 990;
+      document.getElementById('slTemp').value = 0;
+      document.getElementById('slWind').value = 0;
+      manualSubscale();
+    } else if (num === 2) {
+      setLockMode('IND');
+      document.getElementById('slMain').value = 4500;
+      document.getElementById('slQnh').value = 1013;
+      document.getElementById('slSub').value = 1013;
+      document.getElementById('slTemp').value = -20;
+      document.getElementById('slWind').value = 0;
+      setSubscalePreset('QNH');
+    } else if (num === 3) {
+      setLockMode('IND');
+      document.getElementById('slMain').value = 5010;
+      document.getElementById('slSub').value = 1020;
+      document.getElementById('slQnh').value = 992;
+      document.getElementById('slTemp').value = -15;
+      document.getElementById('slWind').value = 45;
+      manualSubscale();
+    }
+    updateSim();
+  }
+
+  function updateSim() {
+    const mainVal = parseInt(document.getElementById('slMain').value);
+    const qnh = parseInt(document.getElementById('slQnh').value);
+    const sub = parseInt(document.getElementById('slSub').value);
+    const dIsa = parseInt(document.getElementById('slTemp').value);
+    const wind = parseInt(document.getElementById('slWind').value);
+
+    // Calcoli con 27 ft/hPa
+    const baroDiff = (sub - qnh) * FT_PER_HPA;
+    const windErr = Math.round((wind * wind) * 0.1);
+    const qfe = Math.round(qnh - (ELEV_AIRPORT / FT_PER_HPA));
+
+    // Quota dell'isobara 1013 hPa rispetto al MSL (27 ft/hPa)
+    const iso1013AltMSL = (qnh - 1013) * FT_PER_HPA;
+
+    let trueAlt, indAlt, heightAboveStation, tempErr;
+
+    if (lockMode === 'TRUE') {
+      trueAlt = mainVal;
+      heightAboveStation = Math.max(0, trueAlt - ELEV_AIRPORT);
+      tempErr = Math.round(4 * (heightAboveStation / 1000) * dIsa);
+      indAlt = trueAlt + baroDiff - tempErr + windErr;
+    } else {
+      indAlt = mainVal;
+      const calibAltMSL = indAlt - baroDiff;
+      heightAboveStation = Math.max(0, calibAltMSL - ELEV_AIRPORT);
+      tempErr = Math.round(4 * (heightAboveStation / 1000) * dIsa);
+      trueAlt = calibAltMSL + tempErr - windErr;
+    }
+
+    // Pressure Altitude = lettura con sottoscala 1013 hPa (27 ft/hPa)
+    const pa = Math.round(trueAlt + (1013 - qnh) * FT_PER_HPA - tempErr + windErr);
+    const fl = Math.round(pa / 100);
+    const flStr = "FL" + String(Math.max(0, fl)).padStart(3, '0');
+
+    const tIsa = Math.round(15 - 2 * (trueAlt / 1000));
+    const oat = tIsa + dIsa;
+    const da = Math.round(pa + (120 * dIsa));
+
+    // Aggiornamento Etichette UI
+    document.getElementById('lblMainSliderVal').innerText = mainVal + " ft";
+    document.getElementById('lblSub').innerText = sub + " hPa";
+    document.getElementById('lblQnh').innerText = qnh + " hPa (QFE Pista: " + qfe + " hPa)";
+    document.getElementById('lblTemp').innerText = (dIsa >= 0 ? "+" + dIsa : dIsa) + " °C (OAT: " + (oat >= 0 ? "+" + oat : oat) + "°C)";
+    document.getElementById('lblWind').innerText = wind + " kt (Errore: +" + windErr + " ft indicati)";
+
+    document.getElementById('digAlt').innerText = indAlt + " FT";
+    document.getElementById('digFL').innerText = "PA (1013): " + pa + " ft (" + flStr + ")";
+    document.getElementById('digSub').innerText = sub + " hPa";
+
+    // Sicurezza sulla montagna (4200 ft)
+    const margin = trueAlt - ELEV_MOUNTAIN;
+    const badge = document.getElementById('safetyBadge');
+    if (trueAlt <= ELEV_AIRPORT + 20) {
+      badge.className = "status-badge safe";
+      badge.innerText = "Aereo a terra in Pista (" + ELEV_AIRPORT + " ft MSL)";
+    } else if (margin > 500) {
+      badge.className = "status-badge safe";
+      badge.innerText = "Margine Montagna: +" + margin + " ft (Sicuro)";
+    } else if (margin > 0) {
+      badge.className = "status-badge danger";
+      badge.innerText = "ALLERTA QUOTA: solo +" + margin + " ft dalla cima!";
+    } else {
+      badge.className = "status-badge danger";
+      badge.innerText = "IMPATTO (CFIT): " + margin + " ft sotto la cima!";
+    }
+
+    // Aggiornamento Formule Dinamiche
+    document.getElementById('f_qnh1').innerText = qnh;
+    document.getElementById('f_iso1013').innerText = (iso1013AltMSL >= 0 ? "+" : "") + iso1013AltMSL + " ft MSL";
+    document.getElementById('f_pa').innerText = pa + " ft (" + flStr + ")";
+
+    document.getElementById('f_sub').innerText = sub;
+    document.getElementById('f_qnh').innerText = qnh;
+    document.getElementById('f_baroDiff').innerText = (baroDiff >= 0 ? "+" : "") + baroDiff + " ft";
+    
+    document.getElementById('f_height').innerText = heightAboveStation;
+    document.getElementById('f_disa').innerText = (dIsa >= 0 ? "+" : "") + dIsa;
+    document.getElementById('f_tempErr').innerText = (tempErr >= 0 ? "+" : "") + tempErr + " ft";
+
+    document.getElementById('f_ind').innerText = indAlt + " ft";
+    document.getElementById('f_trueAlt').innerText = trueAlt + " ft";
+    document.getElementById('f_disa2').innerText = (dIsa >= 0 ? "+" : "") + dIsa;
+    document.getElementById('f_da').innerText = da + " ft";
+
+    drawWorld(indAlt, trueAlt, qnh, qfe, iso1013AltMSL, pa, flStr, dIsa, wind);
+    drawAltimeter(indAlt, sub);
+  }
+
+  function altToY(alt) {
+    const groundZeroY = 445; // 0 ft MSL
+    return groundZeroY - (alt / 8500) * 400;
+  }
+
+  function drawIsobarLine(baseAltMSL, dIsa, wind, color, lineWidth, dashArray, labelText, labelX) {
+    wCtx.save();
+    wCtx.strokeStyle = color;
+    wCtx.lineWidth = lineWidth;
+    wCtx.setLineDash(dashArray);
+    
+    const tempShift = baseAltMSL * 0.004 * dIsa;
+    const yBase = altToY(baseAltMSL + tempShift);
+
+    wCtx.beginPath();
+    for (let x = 0; x <= wCanvas.width; x += 20) {
+      let distFromPeak = Math.abs(x - 560);
+      let venturiDip = (distFromPeak < 130 && baseAltMSL > 2000) ? Math.cos((distFromPeak / 130) * (Math.PI / 2)) * (wind * 0.35) : 0;
+      if (x === 0) wCtx.moveTo(x, yBase + venturiDip);
+      else wCtx.lineTo(x, yBase + venturiDip);
+    }
+    wCtx.stroke();
+
+    if (labelText) {
+      wCtx.setLineDash([]);
+      wCtx.fillStyle = "#0f172a";
+      wCtx.fillRect(labelX - 4, yBase - 15, wCtx.measureText(labelText).width + 12, 18);
+      wCtx.fillStyle = color;
+      wCtx.font = "bold 11.5px monospace";
+      wCtx.fillText(labelText, labelX, yBase - 2);
+    }
+    wCtx.restore();
+    return yBase;
+  }
+
+  function drawWorld(indAlt, trueAlt, qnh, qfe, iso1013AltMSL, pa, flStr, dIsa, wind) {
+    wCtx.clearRect(0, 0, wCanvas.width, wCanvas.height);
+
+    // Sfondo cielo
+    const grad = wCtx.createLinearGradient(0, 0, 0, 520);
+    grad.addColorStop(0, "#090d16");
+    grad.addColorStop(1, dIsa < -5 ? "#1e3a8a" : (dIsa > 5 ? "#3b2f2f" : "#1e293b"));
+    wCtx.fillStyle = grad;
+    wCtx.fillRect(0, 0, wCanvas.width, wCanvas.height);
+
+    // Griglia altitudini reali (MSL)
+    wCtx.strokeStyle = "rgba(148, 163, 184, 0.14)";
+    wCtx.fillStyle = "#64748b";
+    wCtx.font = "11px monospace";
+    for (let a = 0; a <= 8000; a += 1000) {
+      let y = altToY(a);
+      wCtx.beginPath();
+      wCtx.moveTo(0, y); wCtx.lineTo(wCanvas.width, y);
+      wCtx.stroke();
+      wCtx.fillText(a + " ft", 8, y - 3);
+    }
+
+    // Isobare secondarie di sfondo (ogni 50 hPa con 27 ft/hPa)
+    for (let p = 950; p >= 750; p -= 50) {
+      let altP = (qnh - p) * FT_PER_HPA;
+      drawIsobarLine(altP, dIsa, wind, "rgba(148, 163, 184, 0.22)", 1, [4, 4], p + " hPa", 745);
+    }
+
+    // Mare (MSL = 0 ft)
+    const yMSL = altToY(0);
+    wCtx.fillStyle = "#0369a1";
+    wCtx.fillRect(0, yMSL, 185, 520 - yMSL);
+
+    // Terreno: Aerodromo (1485 ft) e Montagna Fissa (4200 ft)
+    const yApt = altToY(ELEV_AIRPORT);
+    const yMtn = altToY(ELEV_MOUNTAIN);
+
+    wCtx.fillStyle = "#334155";
+    wCtx.beginPath();
+    wCtx.moveTo(185, 520);
+    wCtx.lineTo(185, yApt);
+    wCtx.lineTo(365, yApt);
+    wCtx.lineTo(475, yMtn + 60);
+    wCtx.lineTo(560, yMtn);
+    wCtx.lineTo(665, yMtn + 90);
+    wCtx.lineTo(755, yApt);
+    wCtx.lineTo(820, yApt);
+    wCtx.lineTo(820, 520);
+    wCtx.closePath();
+    wCtx.fill();
+
+    // Pista Aerodromo
+    wCtx.fillStyle = "#94a3b8";
+    wCtx.fillRect(210, yApt - 3, 125, 6);
+    wCtx.fillStyle = "#f8fafc";
+    wCtx.font = "11px sans-serif";
+    wCtx.fillText("Aerodromo (Elev: " + ELEV_AIRPORT + " ft)", 200, yApt + 18);
+
+    // ISOBARA 1: QNH ATTUALE (Livello del Mare = 0 ft MSL)
+    drawIsobarLine(0, 0, 0, "#4ade80", 2.5, [8, 4], "ISOBARA QNH ATTUALE: " + qnh + " hPa (MSL)", 10);
+
+    // ISOBARA 2: QFE ATTUALE (Livello Pista = 1485 ft MSL)
+    drawIsobarLine(ELEV_AIRPORT, 0, 0, "#38bdf8", 1.8, [5, 5], "ISOBARA QFE: " + qfe + " hPa", 205);
+
+    // ISOBARA 3: RIFERIMENTO STANDARD 1013 hPa (27 ft/hPa)
+    const yIso1013 = drawIsobarLine(
+      iso1013AltMSL, 0, 0, "#e879f9", 2.5, [10, 4],
+      "ISOBARA STD 1013 hPa (" + (iso1013AltMSL >= 0 ? "+" : "") + iso1013AltMSL + " ft MSL)", 440
+    );
+
+    // Etichetta Montagna Fissa
+    wCtx.fillStyle = "#f8fafc";
+    wCtx.font = "bold 12px sans-serif";
+    wCtx.fillText("MONTAGNA: 4200 ft", 500, yMtn - 8);
+
+    // Posizione X dell'aereo
+    const planeX = (trueAlt <= ELEV_AIRPORT + 20) ? 265 : 560;
+
+    // Aereo Fantasma (Quota Indicata)
+    const yInd = altToY(indAlt);
+    if (Math.abs(indAlt - trueAlt) > 25) {
+      drawAirplane(planeX, yInd, "rgba(250, 204, 21, 0.55)", "Lettura Strumento: " + indAlt + " ft");
+    }
+
+    // Aereo Reale (True Altitude)
+    const yTrue = altToY(trueAlt);
+    const isCrash = (planeX === 560 && trueAlt <= ELEV_MOUNTAIN);
+    drawAirplane(planeX, yTrue, isCrash ? "#ef4444" : "#38bdf8", "QUOTA VERA: " + trueAlt + " ft");
+
+    // 3 FRECCE DI RIFERIMENTO VERTICALI:
+    drawVerticalMeasure(80, yMSL, yTrue, "#4ade80", "Altitude (QNH): " + trueAlt + " ft");
+    const trueHeight = Math.round(trueAlt - ELEV_AIRPORT);
+    drawVerticalMeasure(345, yApt, yTrue, "#facc15", "Height (QFE): " + trueHeight + " ft");
+    drawVerticalMeasure(685, yIso1013, yTrue, "#e879f9", "PA (1013): " + pa + " ft (" + flStr + ")");
+  }
+
+  function drawAirplane(x, y, color, label) {
+    wCtx.save();
+    wCtx.translate(x, y);
+    wCtx.fillStyle = color;
+    wCtx.strokeStyle = "#0f172a";
+    wCtx.lineWidth = 1.5;
+
+    wCtx.beginPath();
+    wCtx.moveTo(-26, -6);
+    wCtx.lineTo(20, -6);
+    wCtx.lineTo(28, -2);
+    wCtx.lineTo(-26, 0);
+    wCtx.closePath();
+    wCtx.fill(); wCtx.stroke();
+
+    wCtx.beginPath();
+    wCtx.moveTo(-26, -6);
+    wCtx.lineTo(-32, -17);
+    wCtx.lineTo(-18, -6);
+    wCtx.fill();
+
+    wCtx.beginPath();
+    wCtx.moveTo(-5, -4);
+    wCtx.lineTo(7, -4);
+    wCtx.lineTo(2, 4);
+    wCtx.lineTo(-7, 4);
+    wCtx.fill();
+
+    wCtx.font = "bold 11.5px monospace";
+    wCtx.fillStyle = "#0f172a";
+    wCtx.fillRect(32, -13, wCtx.measureText(label).width + 6, 15);
+    wCtx.fillStyle = color;
+    wCtx.fillText(label, 35, -1);
+    wCtx.restore();
+  }
+
+  function drawVerticalMeasure(x, yBottom, yTop, color, text) {
+    if (Math.abs(yBottom - yTop) < 4) return;
+    wCtx.save();
+    wCtx.strokeStyle = color;
+    wCtx.fillStyle = color;
+    wCtx.lineWidth = 2;
+    wCtx.beginPath();
+    wCtx.moveTo(x, yBottom);
+    wCtx.lineTo(x, yTop);
+    wCtx.stroke();
+
+    wCtx.beginPath();
+    wCtx.moveTo(x - 5, yBottom); wCtx.lineTo(x + 5, yBottom);
+    wCtx.moveTo(x - 5, yTop); wCtx.lineTo(x + 5, yTop);
+    wCtx.stroke();
+
+    const midY = (yBottom + yTop) / 2;
+    wCtx.font = "bold 10.5px monospace";
+    wCtx.fillStyle = "#0f172a";
+    wCtx.fillRect(x + 6, midY - 8, wCtx.measureText(text).width + 6, 14);
+    wCtx.fillStyle = color;
+    wCtx.fillText(text, x + 9, midY + 3);
+    wCtx.restore();
+  }
+
+  function drawAltimeter(alt, sub) {
+    const cx = aCanvas.width / 2;
+    const cy = aCanvas.height / 2;
+    const r = 74;
+
+    aCtx.clearRect(0, 0, aCanvas.width, aCanvas.height);
+
+    aCtx.beginPath();
+    aCtx.arc(cx, cy, r, 0, Math.PI * 2);
+    aCtx.fillStyle = "#090d16";
+    aCtx.fill();
+    aCtx.lineWidth = 4;
+    aCtx.strokeStyle = "#475569";
+    aCtx.stroke();
+
+    aCtx.fillStyle = "#f8fafc";
+    aCtx.font = "bold 12px sans-serif";
+    aCtx.textAlign = "center";
+    aCtx.textBaseline = "middle";
+
+    for (let i = 0; i < 50; i++) {
+      let ang = (i / 50) * Math.PI * 2 - Math.PI / 2;
+      let isMajor = (i % 5 === 0);
+      let rIn = isMajor ? r - 12 : r - 6;
+      aCtx.beginPath();
+      aCtx.moveTo(cx + Math.cos(ang) * rIn, cy + Math.sin(ang) * rIn);
+      aCtx.lineTo(cx + Math.cos(ang) * (r - 2), cy + Math.sin(ang) * (r - 2));
+      aCtx.strokeStyle = "#cbd5e1";
+      aCtx.lineWidth = isMajor ? 2 : 1;
+      aCtx.stroke();
+
+      if (isMajor) {
+        let num = i / 5;
+        aCtx.fillText(num, cx + Math.cos(ang) * (r - 22), cy + Math.sin(ang) * (r - 22));
+      }
+    }
+
+    // Finestra di Kollsman
+    aCtx.fillStyle = "#1e293b";
+    aCtx.strokeStyle = "#facc15";
+    aCtx.lineWidth = 1.5;
+    aCtx.fillRect(cx + 16, cy - 9, 40, 18);
+    aCtx.strokeRect(cx + 16, cy - 9, 40, 18);
+    aCtx.fillStyle = "#facc15";
+    aCtx.font = "bold 10.5px monospace";
+    aCtx.fillText(sub, cx + 36, cy + 1);
+
+    aCtx.fillStyle = "#64748b";
+    aCtx.font = "9px sans-serif";
+    aCtx.fillText("ALT", cx, cy - 24);
+
+    const cleanAlt = ((alt % 10000) + 10000) % 10000;
+
+    // Lancetta 1000 ft
+    const ang1000 = (cleanAlt / 10000) * Math.PI * 2 - Math.PI / 2;
+    aCtx.save();
+    aCtx.translate(cx, cy);
+    aCtx.rotate(ang1000);
+    aCtx.fillStyle = "#f8fafc";
+    aCtx.beginPath();
+    aCtx.moveTo(-5, 8);
+    aCtx.lineTo(-5, -34);
+    aCtx.lineTo(0, -44);
+    aCtx.lineTo(5, -34);
+    aCtx.lineTo(5, 8);
+    aCtx.closePath();
+    aCtx.fill();
+    aCtx.restore();
+
+    // Lancetta 100 ft
+    const ang100 = ((cleanAlt % 1000) / 1000) * Math.PI * 2 - Math.PI / 2;
+    aCtx.save();
+    aCtx.translate(cx, cy);
+    aCtx.rotate(ang100);
+    aCtx.fillStyle = "#38bdf8";
+    aCtx.beginPath();
+    aCtx.moveTo(-2.5, 10);
+    aCtx.lineTo(-1.5, -56);
+    aCtx.lineTo(0, -64);
+    aCtx.lineTo(1.5, -56);
+    aCtx.lineTo(2.5, 10);
+    aCtx.closePath();
+    aCtx.fill();
+    aCtx.restore();
+
+    aCtx.beginPath();
+    aCtx.arc(cx, cy, 4.5, 0, Math.PI * 2);
+    aCtx.fillStyle = "#94a3b8";
+    aCtx.fill();
+  }
+
+  updateSim();
+</script>
+</body>
+</html>
